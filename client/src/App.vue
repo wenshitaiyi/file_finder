@@ -709,7 +709,7 @@ function onCellClick(item, e) {
   store.previewKey++
 }
 
-/* ---------- 表格行长按收藏 / 取消收藏（<= 0.5s，设计为 400ms） ---------- */
+/* ---------- 表格行长按收藏 / 取消收藏（360ms 阈值，带容差） ---------- */
 const rowPressKey = ref(null)
 let rowPressTimer = null
 let rowStartX = 0
@@ -741,14 +741,14 @@ function onRowMouseDown(item, e) {
   rowStartY = e.clientY
   rowDidLongPress = false
   rowPressKey.value = selKeyOf(item)
-  rowPressTimer = setTimeout(() => triggerRowLongPress(item), 400)
+  rowPressTimer = setTimeout(() => triggerRowLongPress(item), 360)
 }
 
 function onRowMouseMove(item, e) {
   if (!rowPressTimer) return
   const dx = Math.abs(e.clientX - rowStartX)
   const dy = Math.abs(e.clientY - rowStartY)
-  if (dx > 8 || dy > 8) cancelRowPress()
+  if (dx > 16 || dy > 16) cancelRowPress()
 }
 
 function onRowMouseUp() {
@@ -766,7 +766,7 @@ function onRowTouchStart(item, e) {
   rowStartY = t.clientY
   rowDidLongPress = false
   rowPressKey.value = selKeyOf(item)
-  rowPressTimer = setTimeout(() => triggerRowLongPress(item), 400)
+  rowPressTimer = setTimeout(() => triggerRowLongPress(item), 360)
 }
 
 function onRowTouchMove(item, e) {
@@ -774,7 +774,7 @@ function onRowTouchMove(item, e) {
   const t = e.touches[0]
   const dx = Math.abs(t.clientX - rowStartX)
   const dy = Math.abs(t.clientY - rowStartY)
-  if (dx > 8 || dy > 8) cancelRowPress()
+  if (dx > 16 || dy > 16) cancelRowPress()
 }
 
 function onRowTouchEnd() {
@@ -791,13 +791,38 @@ function onRowCtx(e, item, index = -1) {
   onCtx(e, item, index)
 }
 
+let lastRowClickTime = 0
+let lastRowClickId = null
+let lastRowDblTime = 0
+
+function handleRowDbl(item) {
+  cancelRowPress()
+  if (!item) return
+  const now = Date.now()
+  if (now - lastRowDblTime < 300) return
+  lastRowDblTime = now
+  onCellDbl(item)
+}
+
 function onRowClick(item, e) {
   if (rowDidLongPress) {
     e.preventDefault()
     e.stopPropagation()
-    rowDidLongPress = false
+    setTimeout(() => { rowDidLongPress = false }, 100)
     return
   }
+  const now = Date.now()
+  const itemId = item ? (item.id || item.fav_id || item.rel_path) : null
+
+  // 连续两次快速点击（间隔 < 350ms 且同项）：立即判定为双击收藏！
+  if (lastRowClickId === itemId && (now - lastRowClickTime) < 350) {
+    lastRowClickTime = 0
+    lastRowClickId = null
+    handleRowDbl(item)
+    return
+  }
+  lastRowClickTime = now
+  lastRowClickId = itemId
   onCellClick(item, e)
 }
 
@@ -1970,7 +1995,6 @@ html, body, #app {
 .trow.sel { background: rgba(76,139,245,.16); }
 .trow.pressing {
   background: rgba(245, 185, 66, 0.16) !important;
-  transform: scale(0.995);
 }
 .t-ic { width: 26px; flex: 0 0 26px; display: flex; }
 .t-name { flex: 0 0 auto; overflow: hidden; text-overflow: ellipsis; color: #e3e6eb; }

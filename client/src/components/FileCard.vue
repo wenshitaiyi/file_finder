@@ -41,8 +41,8 @@
         <!-- 长按收藏触发提示气泡 -->
         <transition name="fav-pop">
           <div v-if="favPopping" class="fav-pop-badge">
-            <Icon name="star" :size="24" :style="{ color: isFavorite ? '#f5b942' : '#8b919a' }" />
-            <span>{{ isFavorite ? '已收藏' : '已取消收藏' }}</span>
+            <Icon name="star" :size="24" :style="{ color: popFavTarget ? '#f5b942' : '#8b919a' }" />
+            <span>{{ popFavTarget ? '已收藏' : '已取消收藏' }}</span>
           </div>
         </transition>
       </template>
@@ -102,20 +102,22 @@ const thumbUrl = computed(() => {
   return apiFiles.thumbUrl(props.item.id, cfg[props.mode] || 160)
 })
 
-/* ---------- 长按收藏 / 取消收藏（<= 0.5s，设计为 400ms） ---------- */
-const LONG_PRESS_DURATION = 400
+/* ---------- 长按收藏 / 取消收藏（360ms 阈值，带容差与视觉反馈） ---------- */
+const LONG_PRESS_DURATION = 360
 let pressTimer = null
 let startX = 0
 let startY = 0
 let didLongPress = false
 const isPressing = ref(false)
 const favPopping = ref(false)
+const popFavTarget = ref(false)
 
 function triggerLongPress() {
   if (!props.item) return
   didLongPress = true
   isPressing.value = false
   pressTimer = null
+  popFavTarget.value = !isFavorite.value
   if (typeof navigator !== 'undefined' && navigator.vibrate) {
     try { navigator.vibrate(40) } catch {}
   }
@@ -145,7 +147,8 @@ function onMouseMove(e) {
   if (!pressTimer) return
   const dx = Math.abs(e.clientX - startX)
   const dy = Math.abs(e.clientY - startY)
-  if (dx > 8 || dy > 8) cancelPress()
+  // 放宽到 16px 容差，防止鼠标按下时的指尖微移误杀长按
+  if (dx > 16 || dy > 16) cancelPress()
 }
 
 function onMouseUp() {
@@ -171,7 +174,7 @@ function onTouchMove(e) {
   const t = e.touches[0]
   const dx = Math.abs(t.clientX - startX)
   const dy = Math.abs(t.clientY - startY)
-  if (dx > 8 || dy > 8) cancelPress()
+  if (dx > 16 || dy > 16) cancelPress()
 }
 
 function onTouchEnd() {
@@ -188,21 +191,49 @@ function onContextMenu(e) {
   emit('ctx', e)
 }
 
+/* ---------- 点击与双击（模拟双击检测 + 原生双击兜底 + 防重） ---------- */
+let lastClickTime = 0
+let lastClickX = 0
+let lastClickY = 0
+let lastDblTriggerTime = 0
+
+function handleDblTrigger(e) {
+  cancelPress()
+  if (!props.item || e?.altKey || e?.ctrlKey || e?.metaKey) return
+  const now = Date.now()
+  if (now - lastDblTriggerTime < 300) return
+  lastDblTriggerTime = now
+  emit('dbl', props.item)
+}
+
 function onClick(e) {
   if (didLongPress) {
     e.preventDefault()
     e.stopPropagation()
-    didLongPress = false
+    setTimeout(() => { didLongPress = false }, 100)
     return
   }
   if (!props.item) return
+
+  const now = Date.now()
+  const dx = Math.abs(e.clientX - lastClickX)
+  const dy = Math.abs(e.clientY - lastClickY)
+
+  // 连续两次快速点击（间隔 < 350ms 且位移 < 16px）：判定为双击收藏！
+  if (now - lastClickTime < 350 && dx < 16 && dy < 16) {
+    lastClickTime = 0
+    handleDblTrigger(e)
+    return
+  }
+
+  lastClickTime = now
+  lastClickX = e.clientX
+  lastClickY = e.clientY
   emit('select', props.item, e)
 }
 
 function onDblClick(e) {
-  cancelPress()
-  if (!props.item || e.altKey || e.ctrlKey || e.metaKey) return
-  emit('dbl', props.item)
+  handleDblTrigger(e)
 }
 
 onBeforeUnmount(() => {
@@ -228,12 +259,11 @@ onBeforeUnmount(() => {
 .card.selected { background: rgba(76, 139, 245, 0.18); border-color: rgba(76, 139, 245, 0.55); }
 .card.missing { opacity: 0.55; }
 
-/* 长按按压中的动效反馈 */
+/* 长按按压中的动效反馈（不收缩几何尺寸，避免鼠标滑出卡片触发 mouseleave 误取消） */
 .card.pressing {
-  transform: scale(0.96);
-  border-color: rgba(245, 185, 66, 0.5) !important;
-  box-shadow: 0 0 12px rgba(245, 185, 66, 0.25);
-  background: rgba(245, 185, 66, 0.06) !important;
+  border-color: rgba(245, 185, 66, 0.75) !important;
+  box-shadow: 0 0 0 2px rgba(245, 185, 66, 0.4), 0 0 12px rgba(245, 185, 66, 0.25) !important;
+  background: rgba(245, 185, 66, 0.1) !important;
 }
 
 /* 收藏爆开弹动 */
