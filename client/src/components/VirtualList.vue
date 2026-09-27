@@ -249,8 +249,10 @@ function patchItemByRef(target, patch) {
 }
 
 function patchItemById(id, patch) {
+  if (id === null || id === undefined) return null
+  const targetIdStr = String(id)
   for (const list of pages.values()) {
-    const i = list.findIndex(it => it && (it.id === id || it.fav_id === id))
+    const i = list.findIndex(it => it && (String(it.id) === targetIdStr || (it.fav_id != null && String(it.fav_id) === targetIdStr)))
     if (i >= 0) {
       list[i] = { ...list[i], ...patch }
       version.value++
@@ -302,10 +304,11 @@ function getItemByIndex(index) {
 
 // 根据 ID 或 fav_id 查找条目在全局数据中的绝对索引
 function findIndexById(id) {
-  if (!id) return -1
+  if (id === null || id === undefined) return -1
+  const targetIdStr = String(id)
   for (const [page, list] of pages.entries()) {
     if (!list) continue
-    const offset = list.findIndex(it => it && (it.id === id || it.fav_id === id))
+    const offset = list.findIndex(it => it && (String(it.id) === targetIdStr || (it.fav_id != null && String(it.fav_id) === targetIdStr)))
     if (offset >= 0) return page * props.pageSize + offset
   }
   return -1

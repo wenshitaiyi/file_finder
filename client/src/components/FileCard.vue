@@ -2,7 +2,7 @@
 <template>
   <div
     class="card"
-    :class="[`m-${mode}`, { selected, missing: item?.exists_now === false, pressing: isPressing, 'fav-pop': favPopping }]"
+    :class="[`m-${mode}`, { selected, favorited: isFavorite, missing: item?.exists_now === false, pressing: isPressing, 'fav-pop': favPopping }]"
     :title="item ? item.rel_path : ''"
     @mousedown="onMouseDown"
     @mousemove="onMouseMove"
@@ -34,8 +34,16 @@
         <Icon v-else :name="iconName" :size="iconSize" :style="{ color: item.is_dir ? '#e8c468' : fileColor(item) }" />
         <span v-if="isVideo" class="play-badge"><Icon name="play" :size="14" /></span>
         <span class="idx-badge">#{{ (index || 0) + 1 }}</span>
+        <span v-if="isFavorite" class="fav-tag">★ 已收藏</span>
         <span v-if="item.is_dir" class="dir-badge"><Icon name="folder" :size="14" /></span>
-        <span v-if="isFavorite" class="fav-badge" :class="{ 'star-pop': starAnim }" title="取消收藏" @click.stop="$emit('fav', item)"><Icon name="star" :size="13" /></span>
+        <span
+          class="fav-badge"
+          :class="{ active: isFavorite, 'star-pop': starAnim }"
+          :title="isFavorite ? '已收藏（点击取消）' : '点击收藏（亦支持双击/长按/空格）'"
+          @click.stop="$emit('fav', item)"
+        >
+          <Icon name="star" :size="13" />
+        </span>
         <span v-if="item.exists_now === false || imgError" class="missing-badge">丢失</span>
 
         <!-- 长按收藏触发提示气泡 -->
@@ -102,8 +110,8 @@ const thumbUrl = computed(() => {
   return apiFiles.thumbUrl(props.item.id, cfg[props.mode] || 160)
 })
 
-/* ---------- 长按收藏 / 取消收藏（360ms 阈值，带容差与视觉反馈） ---------- */
-const LONG_PRESS_DURATION = 360
+/* ---------- 长按收藏 / 取消收藏（320ms 阈值，带容差与即时视觉反馈） ---------- */
+const LONG_PRESS_DURATION = 320
 let pressTimer = null
 let startX = 0
 let startY = 0
@@ -147,8 +155,8 @@ function onMouseMove(e) {
   if (!pressTimer) return
   const dx = Math.abs(e.clientX - startX)
   const dy = Math.abs(e.clientY - startY)
-  // 放宽到 16px 容差，防止鼠标按下时的指尖微移误杀长按
-  if (dx > 16 || dy > 16) cancelPress()
+  // 放宽到 20px 容差，防止鼠标按下时的指尖微移误杀长按
+  if (dx > 20 || dy > 20) cancelPress()
 }
 
 function onMouseUp() {
@@ -174,7 +182,7 @@ function onTouchMove(e) {
   const t = e.touches[0]
   const dx = Math.abs(t.clientX - startX)
   const dy = Math.abs(t.clientY - startY)
-  if (dx > 16 || dy > 16) cancelPress()
+  if (dx > 20 || dy > 20) cancelPress()
 }
 
 function onTouchEnd() {
@@ -219,8 +227,8 @@ function onClick(e) {
   const dx = Math.abs(e.clientX - lastClickX)
   const dy = Math.abs(e.clientY - lastClickY)
 
-  // 连续两次快速点击（间隔 < 350ms 且位移 < 16px）：判定为双击收藏！
-  if (now - lastClickTime < 350 && dx < 16 && dy < 16) {
+  // 连续两次点击（放宽到间隔 < 420ms 且位移 < 24px）：稳健判定为双击收藏！
+  if (now - lastClickTime < 420 && dx < 24 && dy < 24) {
     lastClickTime = 0
     handleDblTrigger(e)
     return
@@ -257,6 +265,15 @@ onBeforeUnmount(() => {
 }
 .card:hover { background: rgba(255, 255, 255, 0.05); }
 .card.selected { background: rgba(76, 139, 245, 0.18); border-color: rgba(76, 139, 245, 0.55); }
+.card.favorited {
+  border-color: rgba(245, 185, 66, 0.85) !important;
+  background: rgba(245, 185, 66, 0.12) !important;
+  box-shadow: 0 0 10px rgba(245, 185, 66, 0.25) !important;
+}
+.card.favorited.selected {
+  border-color: #f5b942 !important;
+  box-shadow: 0 0 0 2px rgba(76, 139, 245, 0.8), 0 0 14px rgba(245, 185, 66, 0.4) !important;
+}
 .card.missing { opacity: 0.55; }
 
 /* 长按按压中的动效反馈（不收缩几何尺寸，避免鼠标滑出卡片触发 mouseleave 误取消） */
@@ -361,15 +378,47 @@ onBeforeUnmount(() => {
   background: rgba(232,196,104,.22); color: #e8c468;
   display: flex; align-items: center; justify-content: center;
 }
+.fav-tag {
+  position: absolute;
+  top: 5px;
+  left: 38px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(245, 185, 66, 0.95);
+  color: #1a1c20;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+  pointer-events: none;
+  z-index: 3;
+}
 .fav-badge {
-  position: absolute; top: 5px; right: 5px;
-  width: 22px; height: 22px; border-radius: 50%;
-  background: rgba(232,170,40,.25); color: #f5b942;
-  display: flex; align-items: center; justify-content: center;
-  transition: transform 0.15s ease;
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.45);
+  color: rgba(255, 255, 255, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  z-index: 5;
+}
+.card:hover .fav-badge {
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(0, 0, 0, 0.65);
+}
+.fav-badge.active {
+  background: rgba(232, 170, 40, 0.95) !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 10px rgba(245, 185, 66, 0.6) !important;
 }
 .fav-badge:hover {
-  transform: scale(1.15);
+  transform: scale(1.22);
 }
 .fav-badge.star-pop {
   animation: starBounce 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);

@@ -152,8 +152,8 @@
               <span class="t-size" :style="colStyle({ key: 'size' })">{{ item ? formatSize(item.size) : '' }}</span>
               <span class="t-date" :style="colStyle({ key: 'mtime' })">{{ item ? formatDate(item.mtime) : '' }}</span>
               <span class="t-path" style="flex:1 1 0; min-width:80px" :title="item && item.root_path">{{ item ? item.root_path : '' }}</span>
-              <span class="t-fav" :style="{ width: 24 }" @click.stop="item && onToggleFav(item)" :title="item && (item.favorite || item.fav_id) ? '取消收藏' : ''">
-                <Icon v-if="item && (item.favorite || item.fav_id)" name="star" :size="13" style="color:#f5b942; cursor:pointer" />
+              <span class="t-fav" :style="{ width: 24 }" @click.stop="item && onToggleFav(item)" :title="item && (item.favorite || item.fav_id) ? '已收藏（点击取消）' : '点击收藏'">
+                <Icon name="star" :size="13" :style="{ color: (item && (item.favorite || item.fav_id)) ? '#f5b942' : 'rgba(255,255,255,0.18)', cursor: 'pointer' }" />
               </span>
               <span v-if="item && item.exists_now === false" class="t-miss">丢失</span>
             </div>
@@ -1127,7 +1127,15 @@ async function batchFav() {
       } catch { /* 单条失败继续 */ }
       it.favorite = false
       if (listRef.value) listRef.value.patchItemById(it.id || it.fav_id, { favorite: false })
+      if (store.tab === 'pick') {
+        const p = pickBatchItems.value.find(i => i && (String(i.id) === String(it.id) || (it.fav_id && String(i.fav_id) === String(it.fav_id))))
+        if (p) p.favorite = false
+      }
     }
+    if (store.tab === 'pick') {
+      pickBatchItems.value = [...pickBatchItems.value]
+    }
+    if (listRef.value) listRef.value.bump()
     if (store.tab === 'favorites') {
       const idsToRemove = items.map(i => i.id || i.fav_id)
       if (listRef.value) listRef.value.removeAndRefresh(idsToRemove, Math.max(0, store.favTotal - items.length))
@@ -1145,17 +1153,38 @@ async function batchFav() {
       return
     }
     const ids = toAdd.map(i => i.id)
+    // 乐观更新：立刻在界面打星并联动顶部数量！
+    for (const it of toAdd) {
+      it.favorite = true
+      if (listRef.value) listRef.value.patchItemById(it.id, { favorite: true })
+      if (store.tab === 'pick') {
+        const p = pickBatchItems.value.find(i => i && String(i.id) === String(it.id))
+        if (p) p.favorite = true
+      }
+    }
+    if (store.tab === 'pick') {
+      pickBatchItems.value = [...pickBatchItems.value]
+    }
+    if (listRef.value) listRef.value.bump()
+
     try {
       const r = await apiFavorites.batch(ids)
       const added = r?.data?.added || 0
       store.favTotal += added
-      for (const it of toAdd) {
-        it.favorite = true
-        if (listRef.value) listRef.value.patchItemById(it.id, { favorite: true })
-      }
       clearSelection()
       refreshStats()
     } catch (e) {
+      // 失败回滚
+      for (const it of toAdd) {
+        it.favorite = false
+        if (listRef.value) listRef.value.patchItemById(it.id, { favorite: false })
+        if (store.tab === 'pick') {
+          const p = pickBatchItems.value.find(i => i && String(i.id) === String(it.id))
+          if (p) p.favorite = false
+        }
+      }
+      if (store.tab === 'pick') pickBatchItems.value = [...pickBatchItems.value]
+      if (listRef.value) listRef.value.bump()
       alert(`批量收藏失败: ${e.message}`)
     }
   }
@@ -1458,28 +1487,70 @@ async function onToggleFav(item) {
     }
     return
   }
-  const r = await apiFavorites.toggle(item.id)
-  const fav = r.data.favorite
-  item.favorite = fav
-  if (fav) store.favTotal++
-  else store.favTotal = Math.max(0, store.favTotal - 1)
 
-  // 1. 通过 ID 替换 VirtualList 缓存生成新引用对象，并促发 version++ 响应式计算
+  // 1. 乐观预先翻转状态（0毫秒立即在卡片与顶部数量产生回显反应！）
+  const targetFav = !item.favorite
+  item.favorite = targetFav
+
   if (listRef.value) {
-    const updated = listRef.value.patchItemById(item.id, { favorite: fav })
-    if (updated && store.selected && (store.selected.id === item.id || store.selected.fav_id === item.id)) {
+    const updated = listRef.value.patchItemById(item.id, { favorite: targetFav })
+    if (updated && store.selected && (String(store.selected.id) === String(item.id) || String(store.selected.fav_id) === String(item.id))) {
       store.selected = updated
     }
     listRef.value.bump()
   }
-  // 2. 同步更新当前选中对象为新浅拷贝对象
-  if (store.selected && (store.selected.id === item.id || store.selected.fav_id === item.id)) {
-    store.selected = { ...store.selected, favorite: fav }
+  if (store.selected && (String(store.selected.id) === String(item.id) || String(store.selected.fav_id) === String(item.id))) {
+    store.selected = { ...store.selected, favorite: targetFav }
   }
   if (store.tab === 'pick') {
-    const it = pickBatchItems.value.find(i => i && i.id === item.id)
-    if (it) it.favorite = fav
+    const it = pickBatchItems.value.find(i => i && String(i.id) === String(item.id))
+    if (it) it.favorite = targetFav
+    // 关键：重新赋值触发 Vue 3 对 pickBatchItems 的 shallow 依赖追踪更新！
+    pickBatchItems.value = [...pickBatchItems.value]
   }
+
+  // 2. 发起后端网络持久化
+  try {
+    const r = await apiFavorites.toggle(item.id)
+    const fav = r.data.favorite
+    item.favorite = fav
+    if (fav) store.favTotal++
+    else store.favTotal = Math.max(0, store.favTotal - 1)
+
+    if (listRef.value) {
+      const updated = listRef.value.patchItemById(item.id, { favorite: fav })
+      if (updated && store.selected && (String(store.selected.id) === String(item.id) || String(store.selected.fav_id) === String(item.id))) {
+        store.selected = updated
+      }
+      listRef.value.bump()
+    }
+    if (store.selected && (String(store.selected.id) === String(item.id) || String(store.selected.fav_id) === String(item.id))) {
+      store.selected = { ...store.selected, favorite: fav }
+    }
+    if (store.tab === 'pick') {
+      const it = pickBatchItems.value.find(i => i && String(i.id) === String(item.id))
+      if (it) it.favorite = fav
+      pickBatchItems.value = [...pickBatchItems.value]
+    }
+  } catch (e) {
+    // 失败回退状态
+    const fallbackFav = !targetFav
+    item.favorite = fallbackFav
+    if (listRef.value) {
+      listRef.value.patchItemById(item.id, { favorite: fallbackFav })
+      listRef.value.bump()
+    }
+    if (store.selected && (String(store.selected.id) === String(item.id) || String(store.selected.fav_id) === String(item.id))) {
+      store.selected = { ...store.selected, favorite: fallbackFav }
+    }
+    if (store.tab === 'pick') {
+      const it = pickBatchItems.value.find(i => i && String(i.id) === String(item.id))
+      if (it) it.favorite = fallbackFav
+      pickBatchItems.value = [...pickBatchItems.value]
+    }
+    alert(`收藏操作失败: ${e.message}`)
+  }
+
   store.previewKey++
   refreshStats()
 }
