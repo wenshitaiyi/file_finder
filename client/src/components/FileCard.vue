@@ -34,15 +34,14 @@
         <Icon v-else :name="iconName" :size="iconSize" :style="{ color: item.is_dir ? '#e8c468' : fileColor(item) }" />
         <span v-if="isVideo" class="play-badge"><Icon name="play" :size="14" /></span>
         <span class="idx-badge">#{{ (index || 0) + 1 }}</span>
-        <span v-if="isFavorite" class="fav-tag">★ 已收藏</span>
         <span v-if="item.is_dir" class="dir-badge"><Icon name="folder" :size="14" /></span>
         <span
-          class="fav-badge"
+          class="fav-star"
           :class="{ active: isFavorite, 'star-pop': starAnim }"
           :title="isFavorite ? '已收藏（点击取消）' : '点击收藏（亦支持双击/长按/空格）'"
           @click.stop="$emit('fav', item)"
         >
-          <Icon name="star" :size="13" />
+          <Icon name="star" :size="15" />
         </span>
         <span v-if="item.exists_now === false || imgError" class="missing-badge">丢失</span>
 
@@ -266,13 +265,12 @@ onBeforeUnmount(() => {
 .card:hover { background: rgba(255, 255, 255, 0.05); }
 .card.selected { background: rgba(76, 139, 245, 0.18); border-color: rgba(76, 139, 245, 0.55); }
 .card.favorited {
-  border-color: rgba(245, 185, 66, 0.85) !important;
-  background: rgba(245, 185, 66, 0.12) !important;
-  box-shadow: 0 0 10px rgba(245, 185, 66, 0.25) !important;
+  border-color: rgba(245, 185, 66, 0.9) !important;
 }
 .card.favorited.selected {
   border-color: #f5b942 !important;
-  box-shadow: 0 0 0 2px rgba(76, 139, 245, 0.8), 0 0 14px rgba(245, 185, 66, 0.4) !important;
+  background: rgba(76, 139, 245, 0.18) !important;
+  box-shadow: 0 0 0 1px #f5b942 !important;
 }
 .card.missing { opacity: 0.55; }
 
@@ -378,49 +376,35 @@ onBeforeUnmount(() => {
   background: rgba(232,196,104,.22); color: #e8c468;
   display: flex; align-items: center; justify-content: center;
 }
-.fav-tag {
-  position: absolute;
-  top: 5px;
-  left: 38px;
-  font-size: 10px;
-  font-weight: 600;
-  padding: 1px 6px;
-  border-radius: 4px;
-  background: rgba(245, 185, 66, 0.95);
-  color: #1a1c20;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.35);
-  pointer-events: none;
-  z-index: 3;
-}
-.fav-badge {
+.fav-star {
   position: absolute;
   top: 5px;
   right: 5px;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.45);
-  color: rgba(255, 255, 255, 0.35);
+  width: 22px;
+  height: 22px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.18s ease;
   z-index: 5;
+  color: rgba(255, 255, 255, 0.2);
+  background: none;
+  border: none;
+  transition: transform 0.15s ease, color 0.15s ease;
 }
-.card:hover .fav-badge {
-  color: rgba(255, 255, 255, 0.85);
-  background: rgba(0, 0, 0, 0.65);
+.card:hover .fav-star {
+  color: rgba(255, 255, 255, 0.45);
 }
-.fav-badge.active {
-  background: rgba(232, 170, 40, 0.95) !important;
-  color: #ffffff !important;
-  box-shadow: 0 0 10px rgba(245, 185, 66, 0.6) !important;
+.fav-star.active {
+  color: #f5b942 !important;
 }
-.fav-badge:hover {
+.fav-star:hover {
   transform: scale(1.22);
 }
-.fav-badge.star-pop {
+.fav-star.active:hover {
+  color: #ffd066 !important;
+}
+.fav-star.star-pop {
   animation: starBounce 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 @keyframes starBounce {
