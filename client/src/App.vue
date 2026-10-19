@@ -724,6 +724,8 @@ function triggerRowLongPress(item) {
   if (typeof navigator !== 'undefined' && navigator.vibrate) {
     try { navigator.vibrate(40) } catch {}
   }
+  store.selected = item
+  store.previewKey++
   onToggleFav(item)
 }
 
@@ -735,20 +737,26 @@ function cancelRowPress() {
   rowPressKey.value = null
 }
 
+let handledRowPressSelect = false
+
 function onRowMouseDown(item, e) {
   if (e.button !== 0 || !item) return
   rowStartX = e.clientX
   rowStartY = e.clientY
   rowDidLongPress = false
   rowPressKey.value = selKeyOf(item)
-  rowPressTimer = setTimeout(() => triggerRowLongPress(item), 360)
+  rowPressTimer = setTimeout(() => triggerRowLongPress(item), 320)
+
+  // 按下时立即触发选中切换！
+  handledRowPressSelect = true
+  onCellClick(item, e)
 }
 
 function onRowMouseMove(item, e) {
   if (!rowPressTimer) return
   const dx = Math.abs(e.clientX - rowStartX)
   const dy = Math.abs(e.clientY - rowStartY)
-  if (dx > 16 || dy > 16) cancelRowPress()
+  if (dx > 20 || dy > 20) cancelRowPress()
 }
 
 function onRowMouseUp() {
@@ -766,7 +774,11 @@ function onRowTouchStart(item, e) {
   rowStartY = t.clientY
   rowDidLongPress = false
   rowPressKey.value = selKeyOf(item)
-  rowPressTimer = setTimeout(() => triggerRowLongPress(item), 360)
+  rowPressTimer = setTimeout(() => triggerRowLongPress(item), 320)
+
+  // 触控按下立即触发选中切换！
+  handledRowPressSelect = true
+  onCellClick(item, e)
 }
 
 function onRowTouchMove(item, e) {
@@ -774,7 +786,7 @@ function onRowTouchMove(item, e) {
   const t = e.touches[0]
   const dx = Math.abs(t.clientX - rowStartX)
   const dy = Math.abs(t.clientY - rowStartY)
-  if (dx > 16 || dy > 16) cancelRowPress()
+  if (dx > 20 || dy > 20) cancelRowPress()
 }
 
 function onRowTouchEnd() {
@@ -809,21 +821,27 @@ function onRowClick(item, e) {
     e.preventDefault()
     e.stopPropagation()
     setTimeout(() => { rowDidLongPress = false }, 100)
+    handledRowPressSelect = false
     return
   }
   const now = Date.now()
   const itemId = item ? (item.id || item.fav_id || item.rel_path) : null
 
-  // 连续两次快速点击（间隔 < 350ms 且同项）：立即判定为双击收藏！
-  if (lastRowClickId === itemId && (now - lastRowClickTime) < 350) {
+  // 连续两次点击（放宽到间隔 < 420ms 且同项）：判定为双击收藏！
+  if (lastRowClickId === itemId && (now - lastRowClickTime) < 420) {
     lastRowClickTime = 0
     lastRowClickId = null
     handleRowDbl(item)
+    handledRowPressSelect = false
     return
   }
   lastRowClickTime = now
   lastRowClickId = itemId
-  onCellClick(item, e)
+
+  if (!handledRowPressSelect) {
+    onCellClick(item, e)
+  }
+  handledRowPressSelect = false
 }
 
 /* ---------- 拉框多选 ---------- */

@@ -115,6 +115,7 @@ let pressTimer = null
 let startX = 0
 let startY = 0
 let didLongPress = false
+let handledPressSelect = false
 const isPressing = ref(false)
 const favPopping = ref(false)
 const popFavTarget = ref(false)
@@ -128,6 +129,8 @@ function triggerLongPress() {
   if (typeof navigator !== 'undefined' && navigator.vibrate) {
     try { navigator.vibrate(40) } catch {}
   }
+  // 确保长按收藏触发时保持选中切换到该图片
+  emit('select', props.item)
   emit('fav', props.item)
   favPopping.value = true
   setTimeout(() => { favPopping.value = false }, 700)
@@ -148,6 +151,10 @@ function onMouseDown(e) {
   didLongPress = false
   isPressing.value = true
   pressTimer = setTimeout(triggerLongPress, LONG_PRESS_DURATION)
+
+  // 核心优化：图片被按下立即触发切换（更新选中状态与右侧大图预览）！
+  handledPressSelect = true
+  emit('select', props.item, e)
 }
 
 function onMouseMove(e) {
@@ -174,6 +181,10 @@ function onTouchStart(e) {
   didLongPress = false
   isPressing.value = true
   pressTimer = setTimeout(triggerLongPress, LONG_PRESS_DURATION)
+
+  // 核心优化：触控按下立即触发切换！
+  handledPressSelect = true
+  emit('select', props.item, e)
 }
 
 function onTouchMove(e) {
@@ -218,6 +229,7 @@ function onClick(e) {
     e.preventDefault()
     e.stopPropagation()
     setTimeout(() => { didLongPress = false }, 100)
+    handledPressSelect = false
     return
   }
   if (!props.item) return
@@ -230,13 +242,19 @@ function onClick(e) {
   if (now - lastClickTime < 420 && dx < 24 && dy < 24) {
     lastClickTime = 0
     handleDblTrigger(e)
+    handledPressSelect = false
     return
   }
 
   lastClickTime = now
   lastClickX = e.clientX
   lastClickY = e.clientY
-  emit('select', props.item, e)
+
+  // 若未在 mousedown/touchstart 中触发选择（如键盘辅助点击），在此兜底触发
+  if (!handledPressSelect) {
+    emit('select', props.item, e)
+  }
+  handledPressSelect = false
 }
 
 function onDblClick(e) {
