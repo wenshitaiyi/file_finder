@@ -69,6 +69,7 @@
             <option :value="200">200 项 (默认)</option>
             <option :value="300">300 项</option>
             <option :value="500">500 项</option>
+            <option :value="1000">1000 项</option>
           </select>
         </label>
 
