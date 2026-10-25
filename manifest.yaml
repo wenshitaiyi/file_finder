@@ -1,6 +1,6 @@
 name: "file_finder"
 title: "局域网文件索引"
-version: "0.1.1"
+version: "1.1.1"
 description: "类 Everything 的局域网文件索引与整理工具，多线程扫描+全文搜索+收藏整理流水线"
 runtime:
   python: "3.12.0"
