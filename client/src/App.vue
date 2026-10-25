@@ -127,7 +127,7 @@
           :grid="store.viewMode !== 'table'"
           :col-width="cfg.colWidth"
           :row-height="isTable ? 36 : cfg.rowHeight"
-          :buffer-rows="8"
+          :buffer-rows="bufferRows"
           @total-update="onTotalUpdate"
         >
           <template #item="{ item, index }">
@@ -278,7 +278,7 @@ import TaskBar from './components/TaskBar.vue'
 import RootManager from './components/RootManager.vue'
 import CollectDialog from './components/CollectDialog.vue'
 import Icon from './components/Icon.vue'
-import { store, viewCfg, tableCols, saveTableCols } from './store'
+import { store, viewCfg, tableCols, saveTableCols, GRID_BUFFER_ROWS } from './store'
 import { trackTask, loadActiveTasks } from './tasks'
 import { apiSearch, apiFavorites, apiRoots, apiStats, apiFiles, apiFs, apiTrash } from './api'
 import { formatSize, formatDate } from './utils/format'
@@ -400,6 +400,8 @@ const pickUnfavCount = computed(() => Math.max(0, pickBatchItems.value.length - 
 
 const cfg = computed(() => viewCfg())
 const isTable = computed(() => store.viewMode === 'table')
+// 缓冲行数随视图模式变化：超大图标一行就占满屏，预渲染 8 行会白白请求上百张缩略图
+const bufferRows = computed(() => (isTable.value ? 8 : (GRID_BUFFER_ROWS[store.viewMode] || 8)))
 const activeTotal = computed(() => {
   if (store.tab === 'favorites') return store.favTotal
   if (store.tab === 'fs') return store.fsTotal

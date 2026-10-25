@@ -5,12 +5,15 @@ export const VIEW_MODES = {
   small: { colWidth: 148, rowHeight: 128, thumb: 96 },
   medium: { colWidth: 216, rowHeight: 188, thumb: 160 },
   large: { colWidth: 316, rowHeight: 264, thumb: 240 },
+  xlarge: { colWidth: 440, rowHeight: 372, thumb: 384 },   // 超大图标：单屏少数几列，看图为主
 }
+/** 每种网格视图的缓冲行数（行越高，越不需要预渲染太多行，避免一次请求上百张缩略图） */
+export const GRID_BUFFER_ROWS = { small: 8, medium: 8, large: 6, xlarge: 3 }
 
 /** 过滤条件持久化键：tab / 视图 / 搜索词 / 类型 / 排序等，刷新后恢复 */
 const FILTER_KEY = 'ff_filters'
 const TABS = ['search', 'pick', 'fs', 'favorites', 'trash']
-const VIEWS = ['small', 'medium', 'large', 'table']
+const VIEWS = ['small', 'medium', 'large', 'xlarge', 'table']
 function loadSaved() {
   try {
     const o = JSON.parse(localStorage.getItem(FILTER_KEY) || '{}')
@@ -21,7 +24,7 @@ const saved = loadSaved()
 
 export const store = reactive({
   tab: TABS.includes(saved.tab) ? saved.tab : 'search',   // 'search' | 'pick'（拣选） | 'favorites' | 'fs' | 'trash'
-  viewMode: VIEWS.includes(saved.viewMode) ? saved.viewMode : 'medium',  // 'small' | 'medium' | 'large' | 'table'
+  viewMode: VIEWS.includes(saved.viewMode) ? saved.viewMode : 'medium',  // 'small' | 'medium' | 'large' | 'xlarge' | 'table'
   q: typeof saved.q === 'string' ? saved.q : '',
   regex: !!saved.regex,     // 正则表达式搜索开关
   rootId: saved.rootId != null ? saved.rootId : null,     // null = 全部根

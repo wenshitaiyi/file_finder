@@ -132,9 +132,10 @@ let debounce = 0
 // 外部清空/切换搜索词（如“在此目录搜索”）时同步输入框
 watch(() => store.q, (v) => { qText.value = v || '' })
 const viewModes = [
-  { key: 'small', label: '小缩略图', icon: 'grid' },
+  { key: 'small', label: '小缩略图', icon: 'gridS' },
   { key: 'medium', label: '中缩略图', icon: 'grid' },
-  { key: 'large', label: '大缩略图', icon: 'grid' },
+  { key: 'large', label: '大缩略图', icon: 'gridL' },
+  { key: 'xlarge', label: '超大图标（看图为主）', icon: 'gridXL' },
   { key: 'table', label: '表格', icon: 'table' },
 ]
 

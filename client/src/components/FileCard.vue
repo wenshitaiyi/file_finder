@@ -28,7 +28,7 @@
           @error="imgError = true"
         />
         <div v-else-if="imgError" class="missing-thumb">
-          <Icon name="warn" :size="mode === 'small' ? 20 : 36" style="color: #d9a53f;" />
+          <Icon name="warn" :size="mode === 'small' ? 20 : (mode === 'xlarge' ? 52 : 36)" style="color: #d9a53f;" />
           <span v-if="mode !== 'small'" class="missing-text">文件已丢失</span>
         </div>
         <Icon v-else :name="iconName" :size="iconSize" :style="{ color: item.is_dir ? '#e8c468' : fileColor(item) }" />
@@ -97,7 +97,11 @@ watch(() => props.item?.id, () => {
 
 const isVideo = computed(() => props.item && classifyExt(props.item.ext) === 'video')
 const iconName = computed(() => props.item ? fileIcon(props.item) : 'file')
-const iconSize = computed(() => (props.mode === 'small' ? 30 : props.mode === 'large' ? 56 : 42))
+const iconSize = computed(() => {
+  if (props.mode === 'small') return 30
+  if (props.mode === 'xlarge') return 72
+  return props.mode === 'large' ? 56 : 42
+})
 const showThumb = computed(() => {
   if (!props.item || !props.item.id || imgError.value) return false
   const k = classifyExt(props.item.ext)
@@ -105,7 +109,7 @@ const showThumb = computed(() => {
 })
 const thumbUrl = computed(() => {
   if (!props.item || !showThumb.value) return ''
-  const cfg = { small: 96, medium: 160, large: 240 }
+  const cfg = { small: 96, medium: 160, large: 240, xlarge: 384 }
   return apiFiles.thumbUrl(props.item.id, cfg[props.mode] || 160)
 })
 
@@ -291,6 +295,19 @@ onBeforeUnmount(() => {
   box-shadow: 0 0 0 1px #f5b942 !important;
 }
 .card.missing { opacity: 0.55; }
+
+/* 超大图标视图：图更大、标题更醒目，卡片悬停时轻微浮起（看图为主的浏览姿态） */
+.card.m-xlarge { padding: 8px; border-radius: 10px; }
+.card.m-xlarge .thumb { border-radius: 8px; }
+.card.m-xlarge .name { font-size: 13.5px; }
+.card.m-xlarge .sub { font-size: 11.5px; margin-top: 3px; }
+.card.m-xlarge .idx-badge { font-size: 11px; padding: 2px 6px; }
+.card.m-xlarge .fav-star { width: 26px; height: 26px; }
+.card.m-xlarge:hover {
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+.card.m-xlarge.selected { box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35); }
 
 /* 长按按压中的动效反馈（不收缩几何尺寸，避免鼠标滑出卡片触发 mouseleave 误取消） */
 .card.pressing {
